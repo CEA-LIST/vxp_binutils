@@ -61,6 +61,7 @@ enum riscv_seg_mstate last_map_state;
 
 static const char * const *riscv_gpr_names;
 static const char * const *riscv_fpr_names;
+static const char * const *riscv_vpr_names;
 
 /* If set, disassemble as most general instruction.  */
 static int no_aliases;
@@ -70,6 +71,7 @@ set_default_riscv_dis_options (void)
 {
   riscv_gpr_names = riscv_gpr_names_abi;
   riscv_fpr_names = riscv_fpr_names_abi;
+  riscv_vpr_names = riscv_vpr_names_abi;
   no_aliases = 0;
 }
 
@@ -82,6 +84,7 @@ parse_riscv_dis_option_without_args (const char *option)
     {
       riscv_gpr_names = riscv_gpr_names_numeric;
       riscv_fpr_names = riscv_fpr_names_numeric;
+      riscv_vpr_names = riscv_vpr_names_numeric;
     }
   else
     return false;

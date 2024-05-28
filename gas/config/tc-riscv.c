@@ -788,15 +788,21 @@ opcode_name_lookup (char **s)
 }
 
 /* All RISC-V registers belong to one of these classes.  */
+struct regname
+{
+  const char *name;
+  unsigned int num;
+};
+
 enum reg_class
 {
   RCLASS_GPR,
   RCLASS_FPR,
   RCLASS_VECR,
   RCLASS_VECM,
-  RCLASS_MAX,
-
-  RCLASS_CSR
+  RCLASS_CSR,
+  RCLASS_VPR,
+  RCLASS_MAX
 };
 
 static htab_t reg_names_hash = NULL;
@@ -1272,6 +1278,9 @@ md_begin (void)
   hash_reg_names (RCLASS_FPR, riscv_fpr_names_abi, NFPR);
   hash_reg_names (RCLASS_VECR, riscv_vecr_names_numeric, NVECR);
   hash_reg_names (RCLASS_VECM, riscv_vecm_names_numeric, NVECM);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_numeric, NFPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_abi, NFPR);
+
   /* Add "fp" as an alias for "s0".  */
   hash_reg_name (RCLASS_GPR, "fp", 8);
 
@@ -1593,9 +1602,8 @@ static void
 load_const (int reg, expressionS *ep)
 {
   int shift = RISCV_IMM_BITS;
-  bfd_vma upper_imm, sign = (bfd_vma) 1 << (RISCV_IMM_BITS - 1);
   expressionS upper = *ep, lower = *ep;
-  lower.X_add_number = ((ep->X_add_number & (sign + sign - 1)) ^ sign) - sign;
+  lower.X_add_number = (int32_t) ep->X_add_number << (32-shift) >> (32-shift);
   upper.X_add_number -= lower.X_add_number;
 
   if (ep->X_op != O_constant)
@@ -1613,10 +1621,9 @@ load_const (int reg, expressionS *ep)
       upper.X_add_number = (int64_t) upper.X_add_number >> shift;
       load_const (reg, &upper);
 
-      md_assemblef ("slli x%d, x%d, 0x%x", reg, reg, shift);
+      macro_build (NULL, "slli", "d,s,>", reg, reg, shift);
       if (lower.X_add_number != 0)
-	md_assemblef ("addi x%d, x%d, %" BFD_VMA_FMT "d", reg, reg,
-		      lower.X_add_number);
+	macro_build (&lower, "addi", "d,s,j", reg, reg, BFD_RELOC_RISCV_LO12_I);
     }
   else
     {
@@ -1625,16 +1632,13 @@ load_const (int reg, expressionS *ep)
 
       if (upper.X_add_number != 0)
 	{
-	  /* Discard low part and zero-extend upper immediate.  */
-	  upper_imm = ((uint32_t)upper.X_add_number >> shift);
-
-	  md_assemblef ("lui x%d, 0x%" BFD_VMA_FMT "x", reg, upper_imm);
+	  macro_build (ep, "lui", "d,u", reg, BFD_RELOC_RISCV_HI20);
 	  hi_reg = reg;
 	}
 
       if (lower.X_add_number != 0 || hi_reg == 0)
-	md_assemblef ("%s x%d, x%d, %" BFD_VMA_FMT "d", ADD32_INSN, reg, hi_reg,
-		      lower.X_add_number);
+	macro_build (ep, ADD32_INSN, "d,s,j", reg, hi_reg,
+		     BFD_RELOC_RISCV_LO12_I);
     }
 }
 
@@ -2519,18 +2523,21 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  goto jump;
 		case 'S': /* Floating-point RS1 x8-x15.  */
 		  if (!reg_lookup (&asarg, RCLASS_FPR, &regno)
-		      || !(regno >= 8 && regno <= 15))
+		      || !(regno >= 8 && regno <= 15)
+              || !reg_lookup (&asarg, RCLASS_VPR, &regno))
 		    break;
 		  INSERT_OPERAND (CRS1S, *ip, regno % 8);
 		  continue;
 		case 'D': /* Floating-point RS2 x8-x15.  */
 		  if (!reg_lookup (&asarg, RCLASS_FPR, &regno)
-		      || !(regno >= 8 && regno <= 15))
+		      || !(regno >= 8 && regno <= 15)
+              || !reg_lookup (&asarg, RCLASS_VPR, &regno))
 		    break;
 		  INSERT_OPERAND (CRS2S, *ip, regno % 8);
 		  continue;
 		case 'T': /* Floating-point RS2.  */
-		  if (!reg_lookup (&asarg, RCLASS_FPR, &regno))
+		  if (!reg_lookup (&asarg, RCLASS_FPR, &regno)
+              || !reg_lookup (&asarg, RCLASS_VPR, &regno))
 		    break;
 		  INSERT_OPERAND (CRS2, *ip, regno);
 		  continue;
@@ -2923,7 +2930,32 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		      break;
 		    }
 		  continue;
-		}
+        } else if (reg_lookup (&asarg, RCLASS_VPR, &regno))
+          {
+            char c = *oparg;
+		    if (*asarg == ' ')
+		      ++asarg;
+            switch (c)
+              {
+              case 'D':
+                INSERT_OPERAND (RD, *ip, regno);
+                break;
+              case 'S':
+                INSERT_OPERAND (RS1, *ip, regno);
+                break;
+              case 'U':
+                INSERT_OPERAND (RS1, *ip, regno);
+                /* fallthru */
+              case 'T':
+                INSERT_OPERAND (RS2, *ip, regno);
+                break;
+              case 'R':
+                INSERT_OPERAND (RS3, *ip, regno);
+                break;
+              }
+            continue;
+          }
+
 	      break;
 
 	    case 'I':
@@ -4205,9 +4237,8 @@ tc_riscv_regname_to_dw2regnum (char *regname)
   if ((reg = reg_lookup_internal (regname, RCLASS_FPR)) >= 0)
     return reg + 32;
 
-  /* CSRs are numbered 4096 -> 8191.  */
-  if ((reg = reg_lookup_internal (regname, RCLASS_CSR)) >= 0)
-    return reg + 4096;
+  if ((reg = reg_lookup_internal (regname, RCLASS_VPR)) >= 0)
+    return reg + 64;
 
   as_bad (_("unknown register `%s'"), regname);
   return -1;
