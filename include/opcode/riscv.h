@@ -1,5 +1,5 @@
 /* riscv.h.  RISC-V opcode list for GDB, the GNU debugger.
-   Copyright (C) 2011-2020 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Andrew Waterman
 
    This file is part of GDB, GAS, and the GNU binutils.
@@ -269,6 +269,7 @@ static const char * const riscv_pred_succ[16] =
 
 #define NGPR 32
 #define NFPR 32
+#define NVPR 32
 
 /* These fake label defines are use by both the assembler, and
    libopcodes.  The assembler uses this when it needs to generate a fake
@@ -294,23 +295,6 @@ static const char * const riscv_pred_succ[16] =
 /* The maximal number of subset can be required. */
 #define MAX_SUBSET_NUM 4
 
-/* All RISC-V instructions belong to at least one of these classes.  */
-
-enum riscv_insn_class
-  {
-   INSN_CLASS_NONE,
-
-   INSN_CLASS_I,
-   INSN_CLASS_C,
-   INSN_CLASS_A,
-   INSN_CLASS_M,
-   INSN_CLASS_F,
-   INSN_CLASS_D,
-   INSN_CLASS_D_AND_C,
-   INSN_CLASS_F_AND_C,
-   INSN_CLASS_Q,
-  };
-
 /* This structure holds information for a particular instruction.  */
 
 struct riscv_opcode
@@ -319,9 +303,9 @@ struct riscv_opcode
   const char *name;
   /* The requirement of xlen for the instruction, 0 if no requirement.  */
   unsigned xlen_requirement;
-  /* Class to which this instruction belongs.  Used to decide whether or
-     not this instruction is legal in the current -march context.  */
-  enum riscv_insn_class insn_class;
+  /* An array of ISA subset name (I, M, A, F, D, Xextension), must ended
+     with a NULL pointer sential.  */
+  const char *subset[MAX_SUBSET_NUM];
   /* A string describing the arguments for this instruction.  */
   const char *args;
   /* The basic opcode for the instruction.  When assembling, this
@@ -417,6 +401,8 @@ extern const char * const riscv_gpr_names_numeric[NGPR];
 extern const char * const riscv_gpr_names_abi[NGPR];
 extern const char * const riscv_fpr_names_numeric[NFPR];
 extern const char * const riscv_fpr_names_abi[NFPR];
+extern const char * const riscv_vpr_names_numeric[NVPR];
+extern const char * const riscv_vpr_names_abi[NVPR];
 
 extern const struct riscv_opcode riscv_opcodes[];
 extern const struct riscv_opcode riscv_insn_types[];

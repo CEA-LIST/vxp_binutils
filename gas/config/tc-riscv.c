@@ -1,5 +1,5 @@
 /* tc-riscv.c -- RISC-V assembler
-   Copyright (C) 2011-2020 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target.
@@ -121,28 +121,15 @@ riscv_subset_supports (const char *feature)
 }
 
 static bfd_boolean
-riscv_multi_subset_supports (enum riscv_insn_class insn_class)
+riscv_multi_subset_supports (const char *features[])
 {
-  switch (insn_class)
-    {
-    case INSN_CLASS_I: return riscv_subset_supports ("i");
-    case INSN_CLASS_C: return riscv_subset_supports ("c");
-    case INSN_CLASS_A: return riscv_subset_supports ("a");
-    case INSN_CLASS_M: return riscv_subset_supports ("m");
-    case INSN_CLASS_F: return riscv_subset_supports ("f");
-    case INSN_CLASS_D: return riscv_subset_supports ("d");
-    case INSN_CLASS_D_AND_C:
-      return riscv_subset_supports ("d") && riscv_subset_supports ("c");
+  unsigned i = 0;
+  bfd_boolean supported = TRUE;
 
-    case INSN_CLASS_F_AND_C:
-      return riscv_subset_supports ("f") && riscv_subset_supports ("c");
+  for (;features[i]; ++i)
+    supported = supported && riscv_subset_supports (features[i]);
 
-    case INSN_CLASS_Q: return riscv_subset_supports ("q");
-
-    default:
-      as_fatal ("Unreachable");
-      return FALSE;
-    }
+  return supported;
 }
 
 /* Set which ISA and extensions are available.  */
@@ -446,11 +433,18 @@ opcode_name_lookup (char **s)
   return o;
 }
 
+struct regname
+{
+  const char *name;
+  unsigned int num;
+};
+
 enum reg_class
 {
   RCLASS_GPR,
   RCLASS_FPR,
   RCLASS_CSR,
+  RCLASS_VPR,
   RCLASS_MAX
 };
 
@@ -483,7 +477,7 @@ hash_reg_names (enum reg_class class, const char * const names[], unsigned n)
 static unsigned int
 reg_lookup_internal (const char *s, enum reg_class class)
 {
-  void *r = hash_find (reg_names_hash, s);
+  struct regname *r = (struct regname *) hash_find (reg_names_hash, s);
 
   if (r == NULL || DECODE_REG_CLASS (r) != class)
     return -1;
@@ -769,6 +763,8 @@ md_begin (void)
   hash_reg_names (RCLASS_GPR, riscv_gpr_names_abi, NGPR);
   hash_reg_names (RCLASS_FPR, riscv_fpr_names_numeric, NFPR);
   hash_reg_names (RCLASS_FPR, riscv_fpr_names_abi, NFPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_numeric, NFPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_abi, NFPR);
 
   /* Add "fp" as an alias for "s0".  */
   hash_reg_name (RCLASS_GPR, "fp", 8);
@@ -935,29 +931,6 @@ macro_build (expressionS *ep, const char *name, const char *fmt, ...)
   append_insn (&insn, ep, r);
 }
 
-/* Build an instruction created by a macro expansion.  Like md_assemble but
-   accept a printf-style format string and arguments.  */
-
-static void
-md_assemblef (const char *format, ...)
-{
-  char *buf = NULL;
-  va_list ap;
-  int r;
-
-  va_start (ap, format);
-
-  r = vasprintf (&buf, format, ap);
-
-  if (r < 0)
-    as_fatal (_("internal error: vasprintf failed"));
-
-  md_assemble (buf);
-  free(buf);
-
-  va_end (ap);
-}
-
 /* Sign-extend 32-bit mode constants that have bit 31 set and all higher bits
    unset.  */
 static void
@@ -1043,9 +1016,8 @@ static void
 load_const (int reg, expressionS *ep)
 {
   int shift = RISCV_IMM_BITS;
-  bfd_vma upper_imm, sign = (bfd_vma) 1 << (RISCV_IMM_BITS - 1);
   expressionS upper = *ep, lower = *ep;
-  lower.X_add_number = ((ep->X_add_number & (sign + sign - 1)) ^ sign) - sign;
+  lower.X_add_number = (int32_t) ep->X_add_number << (32-shift) >> (32-shift);
   upper.X_add_number -= lower.X_add_number;
 
   if (ep->X_op != O_constant)
@@ -1063,10 +1035,9 @@ load_const (int reg, expressionS *ep)
       upper.X_add_number = (int64_t) upper.X_add_number >> shift;
       load_const (reg, &upper);
 
-      md_assemblef ("slli x%d, x%d, 0x%x", reg, reg, shift);
+      macro_build (NULL, "slli", "d,s,>", reg, reg, shift);
       if (lower.X_add_number != 0)
-	md_assemblef ("addi x%d, x%d, %" BFD_VMA_FMT "d", reg, reg,
-		      lower.X_add_number);
+	macro_build (&lower, "addi", "d,s,j", reg, reg, BFD_RELOC_RISCV_LO12_I);
     }
   else
     {
@@ -1075,16 +1046,13 @@ load_const (int reg, expressionS *ep)
 
       if (upper.X_add_number != 0)
 	{
-	  /* Discard low part and zero-extend upper immediate.  */
-	  upper_imm = ((uint32_t)upper.X_add_number >> shift);
-
-	  md_assemblef ("lui x%d, 0x%" BFD_VMA_FMT "x", reg, upper_imm);
+	  macro_build (ep, "lui", "d,u", reg, BFD_RELOC_RISCV_HI20);
 	  hi_reg = reg;
 	}
 
       if (lower.X_add_number != 0 || hi_reg == 0)
-	md_assemblef ("%s x%d, x%d, %" BFD_VMA_FMT "d", ADD32_INSN, reg, hi_reg,
-		      lower.X_add_number);
+	macro_build (ep, ADD32_INSN, "d,s,j", reg, hi_reg,
+		     BFD_RELOC_RISCV_LO12_I);
     }
 }
 
@@ -1434,7 +1402,7 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
       if ((insn->xlen_requirement != 0) && (xlen != insn->xlen_requirement))
 	continue;
 
-      if (!riscv_multi_subset_supports (insn->insn_class))
+      if (!riscv_multi_subset_supports (insn->subset))
 	continue;
 
       create_insn (ip, insn);
@@ -1673,18 +1641,21 @@ rvc_lui:
 		  goto jump;
 		case 'S': /* Floating-point RS1 x8-x15.  */
 		  if (!reg_lookup (&s, RCLASS_FPR, &regno)
-		      || !(regno >= 8 && regno <= 15))
+              || !(regno >= 8 && regno <= 15)
+              || !reg_lookup (&s, RCLASS_VPR, &regno))
 		    break;
 		  INSERT_OPERAND (CRS1S, *ip, regno % 8);
 		  continue;
 		case 'D': /* Floating-point RS2 x8-x15.  */
 		  if (!reg_lookup (&s, RCLASS_FPR, &regno)
-		      || !(regno >= 8 && regno <= 15))
+              || !(regno >= 8 && regno <= 15)
+              || !reg_lookup (&s, RCLASS_VPR, &regno))
 		    break;
 		  INSERT_OPERAND (CRS2S, *ip, regno % 8);
 		  continue;
 		case 'T': /* Floating-point RS2.  */
-		  if (!reg_lookup (&s, RCLASS_FPR, &regno))
+          if (!reg_lookup (&s, RCLASS_FPR, &regno)
+              || !reg_lookup (&s, RCLASS_VPR, &regno))
 		    break;
 		  INSERT_OPERAND (CRS2, *ip, regno);
 		  continue;
@@ -1906,7 +1877,31 @@ rvc_lui:
 		      break;
 		    }
 		  continue;
-		}
+        } else if (reg_lookup (&s, RCLASS_VPR, &regno))
+          {
+            c = *args;
+            if (*s == ' ')
+              ++s;
+            switch (c)
+              {
+              case 'D':
+                INSERT_OPERAND (RD, *ip, regno);
+                break;
+              case 'S':
+                INSERT_OPERAND (RS1, *ip, regno);
+                break;
+              case 'U':
+                INSERT_OPERAND (RS1, *ip, regno);
+                /* fallthru */
+              case 'T':
+                INSERT_OPERAND (RS2, *ip, regno);
+                break;
+              case 'R':
+                INSERT_OPERAND (RS3, *ip, regno);
+                break;
+              }
+            continue;
+          }
 
 	      break;
 
@@ -2341,12 +2336,6 @@ riscv_after_parse_args (void)
 
   /* Insert float_abi into the EF_RISCV_FLOAT_ABI field of elf_flags.  */
   elf_flags |= float_abi * (EF_RISCV_FLOAT_ABI & ~(EF_RISCV_FLOAT_ABI << 1));
-
-  /* If the CIE to be produced has not been overridden on the command line,
-     then produce version 3 by default.  This allows us to use the full
-     range of registers in a .cfi_return_column directive.  */
-  if (flag_dwarf_cie_version == -1)
-    flag_dwarf_cie_version = 3;
 }
 
 long
@@ -3043,9 +3032,8 @@ tc_riscv_regname_to_dw2regnum (char *regname)
   if ((reg = reg_lookup_internal (regname, RCLASS_FPR)) >= 0)
     return reg + 32;
 
-  /* CSRs are numbered 4096 -> 8191.  */
-  if ((reg = reg_lookup_internal (regname, RCLASS_CSR)) >= 0)
-    return reg + 4096;
+  if ((reg = reg_lookup_internal (regname, RCLASS_VPR)) >= 0)
+    return reg + 64;
 
   as_bad (_("unknown register `%s'"), regname);
   return -1;
