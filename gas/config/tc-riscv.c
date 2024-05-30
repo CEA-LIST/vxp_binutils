@@ -802,6 +802,7 @@ enum reg_class
   RCLASS_VECM,
   RCLASS_CSR,
   RCLASS_VPR,
+  RCLASS_VPE,
   RCLASS_MAX
 };
 
@@ -1107,9 +1108,9 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 		  goto unknown_validate_operand;
 		}
 	      break;
-	    default:
-	      goto unknown_validate_operand;
-	    }
+            default:
+              goto unknown_validate_operand;
+            }
 	  break;  /* end RVC */
 	case 'V': /* RVV */
 	  switch (*++oparg)
@@ -1135,52 +1136,61 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 	      goto unknown_validate_operand;
 	    }
 	  break; /* end RVV */
-	case ',': break;
-	case '(': break;
-	case ')': break;
-	case '<': USE_BITS (OP_MASK_SHAMTW, OP_SH_SHAMTW); break;
-	case '>': USE_BITS (OP_MASK_SHAMT, OP_SH_SHAMT); break;
-	case 'A': break; /* Macro operand, must be symbol.  */
-	case 'B': break; /* Macro operand, must be symbol or constant.  */
-	case 'I': break; /* Macro operand, must be constant.  */
-	case 'D': /* RD, floating point.  */
-	case 'd': USE_BITS (OP_MASK_RD, OP_SH_RD); break;
-	case 'y': USE_BITS (OP_MASK_BS,	OP_SH_BS); break;
-	case 'Y': USE_BITS (OP_MASK_RNUM, OP_SH_RNUM); break;
-	case 'Z': /* RS1, CSR number.  */
-	case 'S': /* RS1, floating point.  */
-	case 's': USE_BITS (OP_MASK_RS1, OP_SH_RS1); break;
-	case 'U': /* RS1 and RS2 are the same, floating point.  */
-	  USE_BITS (OP_MASK_RS1, OP_SH_RS1);
-	  /* Fall through.  */
-	case 'T': /* RS2, floating point.  */
-	case 't': USE_BITS (OP_MASK_RS2, OP_SH_RS2); break;
-	case 'R': /* RS3, floating point.  */
-	case 'r': USE_BITS (OP_MASK_RS3, OP_SH_RS3); break;
-	case 'm': USE_BITS (OP_MASK_RM, OP_SH_RM); break;
-	case 'E': USE_BITS (OP_MASK_CSR, OP_SH_CSR); break;
-	case 'P': USE_BITS (OP_MASK_PRED, OP_SH_PRED); break;
-	case 'Q': USE_BITS (OP_MASK_SUCC, OP_SH_SUCC); break;
-	case 'o': /* ITYPE immediate, load displacement.  */
-	case 'j': used_bits |= ENCODE_ITYPE_IMM (-1U); break;
-	case 'a': used_bits |= ENCODE_JTYPE_IMM (-1U); break;
-	case 'p': used_bits |= ENCODE_BTYPE_IMM (-1U); break;
-	case 'q': used_bits |= ENCODE_STYPE_IMM (-1U); break;
-	case 'u': used_bits |= ENCODE_UTYPE_IMM (-1U); break;
-	case 'z': break; /* Zero immediate.  */
-	case '[': break; /* Unused operand.  */
-	case ']': break; /* Unused operand.  */
-	case '0': break; /* AMO displacement, must to zero.  */
-	case '1': break; /* Relaxation operand.  */
-	case 'F': /* Funct for .insn directive.  */
-	  switch (*++oparg)
-	    {
+        case ',': break;
+        case '(': break;
+        case ')': break;
+        case '<': USE_BITS (OP_MASK_SHAMTW,	OP_SH_SHAMTW);	break;
+        case '>':	USE_BITS (OP_MASK_SHAMT,	OP_SH_SHAMT);	break;
+        case 'A': break; /* Macro operand, must be symbol.  */
+        case 'B': break; /* Macro operand, must be symbol or constant.  */
+        case 'I': break; /* Macro operand, must be constant.  */
+        case 'D': /* RD, floating point.  */
+        case 'd':	USE_BITS (OP_MASK_RD,		OP_SH_RD);	break;
+        case 'e':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	break; // Source is a VRP environment register.
+        case 'f':	USE_BITS (OP_MASK_RD,		OP_SH_RD);	break; // Destination is a VRP environment register.
+        case 'g':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	break; // Source #1 is a VRP floating-point register.
+        case 'h':	USE_BITS (OP_MASK_RD,		OP_SH_RD);	break; // Destination is a VRP floating-point register.
+        case 'y':	USE_BITS (OP_MASK_RS2,		OP_SH_RS2);	break; // Source #2 is a VRP floating-point register.
+        case 'W':	USE_BITS (OP_MASK_RM,           OP_SH_RM);      break; // A VRP env reg of the compute class ec0-ec7.
+        case 'X':	USE_BITS (OP_MASK_RM,           OP_SH_RM);      break; // A VRP env reg of the VRP load/store class evp0-evp7.
+        case 'Y':	USE_BITS (OP_MASK_RM,           OP_SH_RM);      break; // A VRP env reg of the half/float/double load/store class efp0-efp7.
+        case 'G':	used_bits |= ENCODE_VRP_LD_IMM (-1U);           break; // A signed immediate byte as index for VRP load instructions.
+        case 'H':	used_bits |= ENCODE_VRP_ST_IMM (-1U);           break; // A signed immediate byte as index for VRP store instructions.
+        case 'J':	used_bits |= ENCODE_VRP_MV_IMM (-1U);           break; // A unsigned 5-bit as immediate for VRP move instructions.
+        case 'Z': /* RS1, CSR number.  */
+        case 'S': /* RS1, floating point.  */
+        case 's':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	break;
+        case 'U': /* RS1 and RS2 are the same, floating point.  */
+                        USE_BITS (OP_MASK_RS1, OP_SH_RS1);
+                        /* Fall through.  */
+        case 'T': /* RS2, floating point.  */
+        case 't':	USE_BITS (OP_MASK_RS2,		OP_SH_RS2);	break;
+        case 'R': /* RS3, floating point.  */
+        case 'r':	USE_BITS (OP_MASK_RS3,          OP_SH_RS3);     break;
+        case 'm':	USE_BITS (OP_MASK_RM,		OP_SH_RM);	break;
+        case 'E':	USE_BITS (OP_MASK_CSR,		OP_SH_CSR);	break;
+        case 'P':	USE_BITS (OP_MASK_PRED,		OP_SH_PRED); break;
+        case 'Q':	USE_BITS (OP_MASK_SUCC,		OP_SH_SUCC); break;
+        case 'o': /* ITYPE immediate, load displacement.  */
+        case 'j': used_bits |= ENCODE_ITYPE_IMM (-1U); break;
+        case 'a':	used_bits |= ENCODE_JTYPE_IMM (-1U); break;
+        case 'p':	used_bits |= ENCODE_BTYPE_IMM (-1U); break;
+        case 'q':	used_bits |= ENCODE_STYPE_IMM (-1U); break;
+        case 'u':	used_bits |= ENCODE_UTYPE_IMM (-1U); break;
+        case 'z': break; /* Zero immediate.  */
+        case '[': break; /* Unused operand.  */
+        case ']': break; /* Unused operand.  */
+        case '0': break; /* AMO displacement, must to zero.  */
+        case '1': break; /* Relaxation operand.  */
+        case 'F': /* Funct for .insn directive.  */
+          switch (*++oparg)
+            {
 	      case '7': USE_BITS (OP_MASK_FUNCT7, OP_SH_FUNCT7); break;
 	      case '3': USE_BITS (OP_MASK_FUNCT3, OP_SH_FUNCT3); break;
 	      case '2': USE_BITS (OP_MASK_FUNCT2, OP_SH_FUNCT2); break;
 	      default:
-		goto unknown_validate_operand;
-	    }
+	        goto unknown_validate_operand;
+	      }
 	  break;
 	case 'O': /* Opcode for .insn directive.  */
 	  switch (*++oparg)
@@ -1278,8 +1288,10 @@ md_begin (void)
   hash_reg_names (RCLASS_FPR, riscv_fpr_names_abi, NFPR);
   hash_reg_names (RCLASS_VECR, riscv_vecr_names_numeric, NVECR);
   hash_reg_names (RCLASS_VECM, riscv_vecm_names_numeric, NVECM);
-  hash_reg_names (RCLASS_VPR, riscv_vpr_names_numeric, NFPR);
-  hash_reg_names (RCLASS_VPR, riscv_vpr_names_abi, NFPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_numeric, NVPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_abi, NVPR);
+  hash_reg_names (RCLASS_VPE, riscv_vpe_names_numeric, NVPE);
+  hash_reg_names (RCLASS_VPE, riscv_vpe_names_abi, NVPE);
 
   /* Add "fp" as an alias for "s0".  */
   hash_reg_name (RCLASS_GPR, "fp", 8);
@@ -2868,10 +2880,74 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		}
 	      break;
 
-	    case 'd': /* Destination register.  */
-	    case 's': /* Source register.  */
-	    case 't': /* Target register.  */
-	    case 'r': /* RS3 */
+	    case 'e':		/* Source is a VRP environment register */
+	      if (reg_lookup (&asarg, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RS1, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'f':		/* Destination is a VRP environment register. */
+	      if (reg_lookup (&asarg, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RD, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'g':		/* Source #1 is a VRP floating-point register. */
+	      if (reg_lookup (&asarg, RCLASS_VPR, &regno))
+		{
+		  INSERT_OPERAND (RS1, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'h':		/* Destination is a VRP floating-point register */
+	      if (reg_lookup (&asarg, RCLASS_VPR, &regno))
+		{
+		  INSERT_OPERAND (RD, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'y':		/* Source #2 is a VRP floating-point register. */
+	      if (reg_lookup (&asarg, RCLASS_VPR, &regno))
+		{
+		  INSERT_OPERAND (RS2, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'W':           /* A VRP env reg of the compute class ec0-ec7. */
+	      if (reg_lookup (&asarg, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RM, *ip, ETBL_TO_EC(regno));
+		  continue;
+		}
+	      break;
+
+	    case 'X':           /* A VRP env reg of the VRP load/store class evp0-evp7. */
+	      if (reg_lookup (&asarg, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RM, *ip, ETBL_TO_EVP(regno));
+		  continue;
+		}
+	      break;
+
+	    case 'Y':           /* A VRP env reg of the half/float/double class efp0-efp7. */
+	      if (reg_lookup (&asarg, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RM, *ip, ETBL_TO_EVF(regno));
+		  continue;
+		}
+	      break;
+
+	    case 'd':		/* Destination register.  */
+	    case 's':		/* Source register.  */
+	    case 't':		/* Target register.  */
+	    case 'r':		/* rs3.  */
 	      if (reg_lookup (&asarg, RCLASS_GPR, &regno))
 		{
 		  char c = *oparg;
@@ -3164,33 +3240,70 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		}
 	      break;
 
-	    case 'y': /* bs immediate */
-	      my_getExpression (imm_expr, asarg);
-	      check_absolute_expr (ip, imm_expr, FALSE);
-	      if ((unsigned long)imm_expr->X_add_number > 3)
-		as_bad(_("Improper bs immediate (%lu)"),
-		       (unsigned long)imm_expr->X_add_number);
-	      INSERT_OPERAND(BS, *ip, imm_expr->X_add_number);
-	      imm_expr->X_op = O_absent;
-	      asarg = expr_end;
-	      continue;
-
-	    case 'Y': /* rnum immediate */
-	      my_getExpression (imm_expr, asarg);
-	      check_absolute_expr (ip, imm_expr, FALSE);
-	      if ((unsigned long)imm_expr->X_add_number > 10)
-		as_bad(_("Improper rnum immediate (%lu)"),
-		       (unsigned long)imm_expr->X_add_number);
-	      INSERT_OPERAND(RNUM, *ip, imm_expr->X_add_number);
-	      imm_expr->X_op = O_absent;
-	      asarg = expr_end;
-	      continue;
+              // Not compatible with Xvpfloat
+//	    case 'y': /* bs immediate */
+//	      my_getExpression (imm_expr, asarg);
+//	      check_absolute_expr (ip, imm_expr, FALSE);
+//	      if ((unsigned long)imm_expr->X_add_number > 3)
+//		as_bad(_("Improper bs immediate (%lu)"),
+//		       (unsigned long)imm_expr->X_add_number);
+//	      INSERT_OPERAND(BS, *ip, imm_expr->X_add_number);
+//	      imm_expr->X_op = O_absent;
+//	      asarg = expr_end;
+//	      continue;
+//
+//	    case 'Y': /* rnum immediate */
+//	      my_getExpression (imm_expr, asarg);
+//	      check_absolute_expr (ip, imm_expr, FALSE);
+//	      if ((unsigned long)imm_expr->X_add_number > 10)
+//		as_bad(_("Improper rnum immediate (%lu)"),
+//		       (unsigned long)imm_expr->X_add_number);
+//	      INSERT_OPERAND(RNUM, *ip, imm_expr->X_add_number);
+//	      imm_expr->X_op = O_absent;
+//	      asarg = expr_end;
+//	      continue;
 
 	    case 'z':
 	      if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
 		  || imm_expr->X_op != O_constant
 		  || imm_expr->X_add_number != 0)
 		break;
+	      asarg = expr_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
+
+	    case 'G': // A signed immediate index for VRP load instructions.
+	      if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
+		  || imm_expr->X_op != O_constant
+		  || !VALID_VRP_LD_IMM (imm_expr->X_add_number)
+		  || imm_expr->X_add_number < -128
+		  || imm_expr->X_add_number >  127)
+		break;
+	      ip->insn_opcode |= ENCODE_VRP_LD_IMM (imm_expr->X_add_number);
+	      asarg = expr_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
+
+	    case 'H': // A signed immediate index for VRP store instructions.
+		if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
+		  || imm_expr->X_op != O_constant
+		  || !VALID_VRP_ST_IMM (imm_expr->X_add_number)
+		  || imm_expr->X_add_number < -128
+		  || imm_expr->X_add_number >  127)
+		break;
+	      ip->insn_opcode |= ENCODE_VRP_ST_IMM (imm_expr->X_add_number);
+	      asarg = expr_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
+
+	    case 'J': // An unsigned 5-bit immediate VRP move instructions.
+		if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
+		  || imm_expr->X_op != O_constant
+		  || !VALID_VRP_MV_IMM (imm_expr->X_add_number)
+		  || imm_expr->X_add_number < 0
+		  || imm_expr->X_add_number > 32 )
+		break;
+	      ip->insn_opcode |= ENCODE_VRP_MV_IMM (imm_expr->X_add_number);
 	      asarg = expr_end;
 	      imm_expr->X_op = O_absent;
 	      continue;
