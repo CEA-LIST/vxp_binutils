@@ -22,6 +22,7 @@
 #define _RISCV_H_
 
 #include "riscv-opc.h"
+#include "riscv-opc-vrp.h"
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -61,6 +62,12 @@ static const char * const riscv_pred_succ[16] =
 #define RV_X(x, s, n)  (((x) >> (s)) & ((1 << (n)) - 1))
 #define RV_IMM_SIGN(x) (-(((x) >> 31) & 1))
 
+#define EXTRACT_VRP_MV_IMM(x) \
+  (RV_X(x, 20, 5)) // The immediate of VRP moves is a 5 bit long unsigned value.
+#define EXTRACT_VRP_LD_IMM(x) \
+  ((signed char)(RV_X(x, 20, 8) | (RV_IMM_SIGN(x) << 8))) // The immediate of VRP loads is a 8 bit long signed value.
+#define EXTRACT_VRP_ST_IMM(x) \
+  ((signed char)( RV_X(x, 7, 5) | (RV_X(x, 25, 3) << 5) | (RV_IMM_SIGN(x) << 8) )) // The immediate of VRP stores is a 8 bit long signed value.
 #define EXTRACT_ITYPE_IMM(x) \
   (RV_X(x, 20, 12) | (RV_IMM_SIGN(x) << 12))
 #define EXTRACT_STYPE_IMM(x) \
@@ -100,6 +107,12 @@ static const char * const riscv_pred_succ[16] =
 #define EXTRACT_RVC_J_IMM(x) \
   ((RV_X(x, 3, 3) << 1) | (RV_X(x, 11, 1) << 4) | (RV_X(x, 2, 1) << 5) | (RV_X(x, 7, 1) << 6) | (RV_X(x, 6, 1) << 7) | (RV_X(x, 9, 2) << 8) | (RV_X(x, 8, 1) << 10) | (-RV_X(x, 12, 1) << 11))
 
+#define ENCODE_VRP_MV_IMM(x) \
+  (RV_X(x, 0, 5) << 20)
+#define ENCODE_VRP_LD_IMM(x) \
+  (RV_X(x, 0, 8) << 20)
+#define ENCODE_VRP_ST_IMM(x) \
+  ( (RV_X(x, 0, 5) << 7) | (RV_X(x, 5, 3) << 25) )
 #define ENCODE_ITYPE_IMM(x) \
   (RV_X(x, 0, 12) << 20)
 #define ENCODE_STYPE_IMM(x) \
@@ -139,6 +152,9 @@ static const char * const riscv_pred_succ[16] =
 #define ENCODE_RVC_J_IMM(x) \
   ((RV_X(x, 1, 3) << 3) | (RV_X(x, 4, 1) << 11) | (RV_X(x, 5, 1) << 2) | (RV_X(x, 6, 1) << 7) | (RV_X(x, 7, 1) << 6) | (RV_X(x, 8, 2) << 9) | (RV_X(x, 10, 1) << 8) | (RV_X(x, 11, 1) << 12))
 
+#define VALID_VRP_MV_IMM(x)(EXTRACT_VRP_MV_IMM(ENCODE_VRP_MV_IMM(x)) == (x))
+#define VALID_VRP_LD_IMM(x)(EXTRACT_VRP_LD_IMM(ENCODE_VRP_LD_IMM(x)) == (x))
+#define VALID_VRP_ST_IMM(x)(EXTRACT_VRP_ST_IMM(ENCODE_VRP_ST_IMM(x)) == (x))
 #define VALID_ITYPE_IMM(x) (EXTRACT_ITYPE_IMM(ENCODE_ITYPE_IMM(x)) == (x))
 #define VALID_STYPE_IMM(x) (EXTRACT_STYPE_IMM(ENCODE_STYPE_IMM(x)) == (x))
 #define VALID_SBTYPE_IMM(x) (EXTRACT_SBTYPE_IMM(ENCODE_SBTYPE_IMM(x)) == (x))
@@ -270,6 +286,7 @@ static const char * const riscv_pred_succ[16] =
 #define NGPR 32
 #define NFPR 32
 #define NVPR 32
+#define NVPE 24 // We have 3x8 registers to describe VPR environments.
 
 /* These fake label defines are use by both the assembler, and
    libopcodes.  The assembler uses this when it needs to generate a fake
@@ -403,6 +420,28 @@ extern const char * const riscv_fpr_names_numeric[NFPR];
 extern const char * const riscv_fpr_names_abi[NFPR];
 extern const char * const riscv_vpr_names_numeric[NVPR];
 extern const char * const riscv_vpr_names_abi[NVPR];
+extern const char * const riscv_vpe_names_numeric[NVPE];
+extern const char * const riscv_vpe_names_abi[NVPE];
+
+/* There are 24 VRP environment registers in riscv_vpe_names_numeric[]
+   and riscv_vpe_names_abi[]. That is 3 consecutives sets of 8
+   registers in each set: indexes 0-7 are for evp0 to evp7, to
+   parameterize VRP loads & stores; indexes 8-15 are for efp0 to
+   efp15, to parameterize half/fload/double VRP loads & stores; and
+   indexes 16-23 are for ec0-ec7 to parameterize computing/arithmetics
+   VRP instructions.
+
+   The following macros are to convert from an index within the table
+   of all environment registers, to the register's index within its
+   own class, and back. May be used to store and recover environment
+   registers from the RM instruction field (bits 12 to 14).
+*/
+#define ETBL_TO_EVP(base)	 (base)
+#define  EVP_TO_ETBL(index)	 (index)
+#define ETBL_TO_EVF(base)	((base) - 8)
+#define  EVF_TO_ETBL(index)	((index)+ 8)
+#define ETBL_TO_EC(base)	((base) -16)
+#define   EC_TO_ETBL(index)	((index)+16)
 
 extern const struct riscv_opcode riscv_opcodes[];
 extern const struct riscv_opcode riscv_insn_types[];

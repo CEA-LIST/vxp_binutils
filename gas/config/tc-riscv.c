@@ -445,6 +445,7 @@ enum reg_class
   RCLASS_FPR,
   RCLASS_CSR,
   RCLASS_VPR,
+  RCLASS_VPE,
   RCLASS_MAX
 };
 
@@ -635,6 +636,17 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
       case 'U':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	/* fallthru */
       case 'T':	USE_BITS (OP_MASK_RS2,		OP_SH_RS2);	break;
       case 'd':	USE_BITS (OP_MASK_RD,		OP_SH_RD);	break;
+      case 'e':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	break; // Source is a VRP environment register.
+      case 'f':	USE_BITS (OP_MASK_RD,		OP_SH_RD);	break; // Destination is a VRP environment register.
+      case 'g':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	break; // Source #1 is a VRP floating-point register.
+      case 'h':	USE_BITS (OP_MASK_RD,		OP_SH_RD);	break; // Destination is a VRP floating-point register.
+      case 'y':	USE_BITS (OP_MASK_RS2,		OP_SH_RS2);	break; // Source #2 is a VRP floating-point register.
+      case 'W':	USE_BITS (OP_MASK_RM,           OP_SH_RM);      break; // A VRP env reg of the compute class ec0-ec7.
+      case 'X':	USE_BITS (OP_MASK_RM,           OP_SH_RM);      break; // A VRP env reg of the VRP load/store class evp0-evp7.
+      case 'Y':	USE_BITS (OP_MASK_RM,           OP_SH_RM);      break; // A VRP env reg of the half/float/double load/store class efp0-efp7.
+      case 'G':	used_bits |= ENCODE_VRP_LD_IMM (-1U);           break; // A signed immediate byte as index for VRP load instructions.
+      case 'H':	used_bits |= ENCODE_VRP_ST_IMM (-1U);           break; // A signed immediate byte as index for VRP store instructions.
+      case 'J':	used_bits |= ENCODE_VRP_MV_IMM (-1U);           break; // A unsigned 5-bit as immediate for VRP move instructions.
       case 'm':	USE_BITS (OP_MASK_RM,		OP_SH_RM);	break;
       case 's':	USE_BITS (OP_MASK_RS1,		OP_SH_RS1);	break;
       case 't':	USE_BITS (OP_MASK_RS2,		OP_SH_RS2);	break;
@@ -763,8 +775,10 @@ md_begin (void)
   hash_reg_names (RCLASS_GPR, riscv_gpr_names_abi, NGPR);
   hash_reg_names (RCLASS_FPR, riscv_fpr_names_numeric, NFPR);
   hash_reg_names (RCLASS_FPR, riscv_fpr_names_abi, NFPR);
-  hash_reg_names (RCLASS_VPR, riscv_vpr_names_numeric, NFPR);
-  hash_reg_names (RCLASS_VPR, riscv_vpr_names_abi, NFPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_numeric, NVPR);
+  hash_reg_names (RCLASS_VPR, riscv_vpr_names_abi, NVPR);
+  hash_reg_names (RCLASS_VPE, riscv_vpe_names_numeric, NVPE);
+  hash_reg_names (RCLASS_VPE, riscv_vpe_names_abi, NVPE);
 
   /* Add "fp" as an alias for "s0".  */
   hash_reg_name (RCLASS_GPR, "fp", 8);
@@ -1817,6 +1831,70 @@ rvc_lui:
 		}
 	      break;
 
+	    case 'e':		/* Source is a VRP environment register */
+	      if (reg_lookup (&s, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RS1, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'f':		/* Destination is a VRP environment register. */
+	      if (reg_lookup (&s, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RD, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'g':		/* Source #1 is a VRP floating-point register. */
+	      if (reg_lookup (&s, RCLASS_VPR, &regno))
+		{
+		  INSERT_OPERAND (RS1, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'h':		/* Destination is a VRP floating-point register */
+	      if (reg_lookup (&s, RCLASS_VPR, &regno))
+		{
+		  INSERT_OPERAND (RD, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'y':		/* Source #2 is a VRP floating-point register. */
+	      if (reg_lookup (&s, RCLASS_VPR, &regno))
+		{
+		  INSERT_OPERAND (RS2, *ip, regno);
+		  continue;
+		}
+	      break;
+
+	    case 'W':           /* A VRP env reg of the compute class ec0-ec7. */
+	      if (reg_lookup (&s, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RM, *ip, ETBL_TO_EC(regno));
+		  continue;
+		}
+	      break;
+
+	    case 'X':           /* A VRP env reg of the VRP load/store class evp0-evp7. */
+	      if (reg_lookup (&s, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RM, *ip, ETBL_TO_EVP(regno));
+		  continue;
+		}
+	      break;
+
+	    case 'Y':           /* A VRP env reg of the half/float/double class efp0-efp7. */
+	      if (reg_lookup (&s, RCLASS_VPE, &regno))
+		{
+		  INSERT_OPERAND (RM, *ip, ETBL_TO_EVF(regno));
+		  continue;
+		}
+	      break;
+
 	    case 'd':		/* Destination register.  */
 	    case 's':		/* Source register.  */
 	    case 't':		/* Target register.  */
@@ -2114,6 +2192,42 @@ jump:
 		  || imm_expr->X_op != O_constant
 		  || imm_expr->X_add_number != 0)
 		break;
+	      s = expr_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
+
+	    case 'G': // A signed immediate index for VRP load instructions.
+	      if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
+		  || imm_expr->X_op != O_constant
+		  || !VALID_VRP_LD_IMM (imm_expr->X_add_number)
+		  || imm_expr->X_add_number < -128
+		  || imm_expr->X_add_number >  127)
+		break;
+	      ip->insn_opcode |= ENCODE_VRP_LD_IMM (imm_expr->X_add_number);
+	      s = expr_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
+
+	    case 'H': // A signed immediate index for VRP store instructions.
+		if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
+		  || imm_expr->X_op != O_constant
+		  || !VALID_VRP_ST_IMM (imm_expr->X_add_number)
+		  || imm_expr->X_add_number < -128
+		  || imm_expr->X_add_number >  127)
+		break;
+	      ip->insn_opcode |= ENCODE_VRP_ST_IMM (imm_expr->X_add_number);
+	      s = expr_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
+
+	    case 'J': // An unsigned 5-bit immediate VRP move instructions.
+		if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
+		  || imm_expr->X_op != O_constant
+		  || !VALID_VRP_MV_IMM (imm_expr->X_add_number)
+		  || imm_expr->X_add_number < 0
+		  || imm_expr->X_add_number > 32 )
+		break;
+	      ip->insn_opcode |= ENCODE_VRP_MV_IMM (imm_expr->X_add_number);
 	      s = expr_end;
 	      imm_expr->X_op = O_absent;
 	      continue;

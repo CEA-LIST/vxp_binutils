@@ -57,18 +57,42 @@ const char * const riscv_fpr_names_abi[NFPR] = {
 };
 
 const char * const riscv_vpr_names_numeric[NFPR] = {
-  "g0", "g1", "g2",  "g3",  "g4", "g5", "g6",  "g7",
-  "g8", "g9", "g10", "g11", "g12", "g13", "g14", "g15",
-  "g16", "g17", "g18", "g19", "g20", "g21", "g22", "g23",
-  "g24", "g25", "g26", "g27", "g28", "g29", "g30", "g31"
+  "p0", "p1", "p2",  "p3",  "p4", "p5", "p6",  "p7",
+  "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15",
+  "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23",
+  "p24", "p25", "p26", "p27", "p28", "p29", "p30", "p31"
 };
 
 const char * const riscv_vpr_names_abi[NFPR] = {
-  "gt0", "gt1", "gt2",  "gt3",  "gt4", "gt5", "gt6",  "gt7",
-  "gs0", "gs1", "ga0",  "ga1",  "ga2", "ga3", "ga4",  "ga5",
-  "ga6", "ga7", "gs2",  "gs3",  "gs4", "gs5", "gs6",  "gs7",
-  "gs8", "gs9", "gs10", "gs11", "gt8", "gt9", "gt10", "gt11"
+  "pt0", "pt1", "pt2",  "pt3",  "pt4", "pt5", "pt6",  "pt7",
+  "ps0", "ps1", "pa0",  "pa1",  "pa2", "pa3", "pa4",  "pa5",
+  "pa6", "pa7", "ps2",  "ps3",  "ps4", "ps5", "ps6",  "ps7",
+  "ps8", "ps9", "ps10", "ps11", "pt8", "pt9", "pt10", "pt11"
 };
+
+const char * const riscv_vpe_names_numeric[NVPE] = {
+  /* We actually have three sort of information related to variable
+     precision. Each is described in its own class of registers. */
+
+  // Registers for variable precision load/store instructions:
+  "evp0", "evp1", "evp2", "evp3", "evp4", "evp5", "evp6", "evp7",
+
+  // Registers for half/float/double load/store instructions:
+  "efp0", "efp1", "efp2", "efp3", "efp4", "efp5", "efp6", "efp7",
+
+  // Registers for computing instructions:
+  "ec0",  "ec1",  "ec2",  "ec3",  "ec4",  "ec5",  "ec6",  "ec7",
+};
+
+const char * const riscv_vpe_names_abi[NVPE] = {
+  /* This are just dumb register names as placeholders. We will
+     revisit them when the ABI for environment registers will be
+     defined. */
+  "evp0abi", "evp1abi", "evp2abi", "evp3abi", "evp4abi", "evp5abi", "evp6abi", "evp7abi",
+  "efp0abi", "efp1abi", "efp2abi", "efp3abi", "efp4abi", "efp5abi", "efp6abi", "efp7abi",
+  "ec0abi",  "ec1abi",  "ec2abi",  "ec3abi",  "ec4abi",  "ec5abi",  "ec6abi",  "ec7abi",
+};
+
 
 /* The order of overloaded instructions matters.  Label arguments and
    register arguments look the same. Instructions that can have either
@@ -792,84 +816,45 @@ const struct riscv_opcode riscv_opcodes[] =
 {"sfence.vma", 0, {"I", 0},   "s,t",  MATCH_SFENCE_VMA, MASK_SFENCE_VMA, match_opcode, 0 },
 {"wfi",        0, {"I", 0},   "",     MATCH_WFI, MASK_WFI, match_opcode, 0 },
 
-// ********************************
-// Variable Precision ISA Extension
-// ********************************
-// LOAD AND STORE STATUS REGISTERS
-{"susr",         0, {"I", 0}, "s", MATCH_SUSR,         MASK_SUSR, match_opcode, 0 },
-{"susr.due.ess", 0, {"I", 0}, "s", MATCH_SUSR_DUE_ESS, MASK_SUSR, match_opcode, 0 },
-{"susr.due.fss", 0, {"I", 0}, "s", MATCH_SUSR_DUE_FSS, MASK_SUSR, match_opcode, 0 },
-{"susr.sue.ess", 0, {"I", 0}, "s", MATCH_SUSR_SUE_ESS, MASK_SUSR, match_opcode, 0 },
-{"susr.sue.fss", 0, {"I", 0}, "s", MATCH_SUSR_SUE_FSS, MASK_SUSR, match_opcode, 0 },
-{"susr.wgp",     0, {"I", 0}, "s", MATCH_SUSR_WGP,     MASK_SUSR, match_opcode, 0 },
-{"susr.mbb",     0, {"I", 0}, "s", MATCH_SUSR_MBB,     MASK_SUSR, match_opcode, 0 },
-
-{"lusr",         0, {"I", 0}, "d", MATCH_LUSR,         MASK_LUSR, match_opcode, 0 },
-{"lusr.due.ess", 0, {"I", 0}, "d", MATCH_LUSR_DUE_ESS, MASK_LUSR, match_opcode, 0 },
-{"lusr.due.fss", 0, {"I", 0}, "d", MATCH_LUSR_DUE_FSS, MASK_LUSR, match_opcode, 0 },
-{"lusr.sue.ess", 0, {"I", 0}, "d", MATCH_LUSR_SUE_ESS, MASK_LUSR, match_opcode, 0 },
-{"lusr.sue.fss", 0, {"I", 0}, "d", MATCH_LUSR_SUE_FSS, MASK_LUSR, match_opcode, 0 },
-{"lusr.wgp",     0, {"I", 0}, "d", MATCH_LUSR_WGP,     MASK_LUSR, match_opcode, 0 },
-{"lusr.mbb",     0, {"I", 0}, "d", MATCH_LUSR_MBB,     MASK_LUSR, match_opcode, 0 },
-
-
-// MOV OPERATORS
-{"fmv.g.g",      0, {"I", 0},   "D,S",     MATCH_FMV_G_G, MASK_FMV_G_G, match_opcode, 0 },
-{"fmvll.g.g",    0, {"I", 0},   "D,S",   MATCH_FMVLL_G_G, MASK_FMVLL_G_G, match_opcode, 0 },
-{"fmvlr.g.g",    0, {"I", 0},   "D,S",     MATCH_FMVLR_G_G, MASK_FMVLR_G_G, match_opcode, 0 },
-{"fmvrl.g.g",    0, {"I", 0},   "D,S",     MATCH_FMVRL_G_G, MASK_FMVRL_G_G, match_opcode, 0 },
-{"fmvrr.g.g",    0, {"I", 0},   "D,S",     MATCH_FMVRR_G_G, MASK_FMVRR_G_G, match_opcode, 0 },
-{"fmv.x.g",      0, {"I", 0},   "D,s",     MATCH_FMV_X_G, MASK_FMV_X_G, match_opcode, 0 },
-{"fmv.g.x",      0, {"I", 0},   "d,S",     MATCH_FMV_G_X, MASK_FMV_G_X, match_opcode, 0 },
-
-{"fcvt.g.x",     0, {"I", 0},  "d,S",     MATCH_FCVT_G_X, MASK_FCVT_G_X, match_opcode, 0 },
-{"fcvt.x.g",     0, {"I", 0},  "D,s",     MATCH_FCVT_X_G, MASK_FCVT_X_G, match_opcode, 0 },
-{"fcvt.g.d",     0, {"I", 0},  "d,T",     MATCH_FCVT_G_D, MASK_FCVT_G_D, match_opcode, 0 },
-{"fcvt.d.g",     0, {"I", 0},  "D,s",     MATCH_FCVT_D_G, MASK_FCVT_D_G, match_opcode, 0 },
-{"fcvt.g.f",     0, {"I", 0},  "d,T",     MATCH_FCVT_G_F, MASK_FCVT_G_F, match_opcode, 0 },
-{"fcvt.f.g",     0, {"I", 0},  "D,s",     MATCH_FCVT_F_G, MASK_FCVT_F_G, match_opcode, 0 },
-
-// G-BOUND ADD OPERATORS
-{"gadd",       0, {"I", 0},   "D,S,T",     MATCH_GADD, MASK_GADD, match_opcode, 0 },
-{"gsub",       0, {"I", 0},   "D,S,T",     MATCH_GSUB, MASK_GADD, match_opcode, 0 },
-{"gmul",       0, {"I", 0},   "D,S,T",     MATCH_GMUL, MASK_GMUL, match_opcode, 0 },
-{"gdiv",       0, {"I", 0},   "D,S,T",     MATCH_GDIV, MASK_DIV, match_opcode, 0 },
-{"gguess",     0, {"I", 0},   "D,S",     MATCH_GGUESS, MASK_GGUESS, match_opcode, 0 },
-{"gradius",    0, {"I", 0},   "D,S,T",     MATCH_GRADIUS, MASK_GRADIUS, match_opcode, 0 },
-// G-BOUND CMP Instructions
-{"gcmp",      0, {"I", 0},   "d,S,T",     MATCH_GCMP, MASK_GCMP, match_opcode, 0 },
-{"geq",       0, {"I", 0},   "d,S,T",     MATCH_GEQ, MASK_GCMP, match_opcode, 0 },
-{"gne",       0, {"I", 0},   "d,S,T",     MATCH_GNE, MASK_GCMP, match_opcode, 0 },
-{"glt",       0, {"I", 0},   "d,S,T",     MATCH_GLT, MASK_GCMP, match_opcode, 0 },
-{"gle",       0, {"I", 0},   "d,S,T",     MATCH_GLE, MASK_GCMP, match_opcode, 0 },
-{"ggt",       0, {"I", 0},   "d,S,T",     MATCH_GGT, MASK_GCMP, match_opcode, 0 },
-{"gge",       0, {"I", 0},   "d,S,T",     MATCH_GGE, MASK_GCMP, match_opcode, 0 },
-// LOAD AND STORE UNIT
-    // 010 GROUP only XS1
-{"ldgu",        0, {"I", 0},   "D,(s)",     MATCH_LDU, MASK_VPISA_LD, match_opcode, 0 },
-{"ldgu.s",      0, {"I", 0},   "D,(s)",   MATCH_LDU_S, MASK_VPISA_LD, match_opcode, 0 },
-{"stgu",        0, {"I", 0},   "T,(s)",     MATCH_STUL, MASK_VPISA_ST, match_opcode, 0 },
-{"stgu.s",      0, {"I", 0},   "T,(s)",   MATCH_STUL_S, MASK_VPISA_ST, match_opcode, 0 },
-//{"ldu",       0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"ldub",      0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"stul",      0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"ldu.s",     0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"ldub.s",    0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"stul.s",    0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"stub.s",    0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST, match_opcode, 0 },
-//{"ldu.next",  0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"ldub.next", 0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"stul.next", 0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"stub.next", 0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"ldu.next",  0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"ldub.next", 0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"stul.next", 0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-//{"stub.next", 0, {"I", 0},   "d",     MATCH_MOV_G2X, MASK_VPISA_LD_ST_NEXT, match_opcode, 0 },
-
-// IEEE-like load and store instructions. I.e, loads from memory to
-// the VRP copro., and stores to memory from the VRP copro.
-{"ld.il",      0, {"I", 0},   "D,(s)",   MATCH_LD_IEEEL, MASK_VPISA_LD, match_opcode, 0 },
-{"st.il",      0, {"I", 0},   "T,(s)",   MATCH_ST_IEEEL, MASK_VPISA_ST, match_opcode, 0 },
+/* ISA extension for VRP (variable precision). Flavor Summer 2021. */
+{"pger",       0, {"I", 0},   "d,e",     MATCH_PGER,     MASK_PGER, match_opcode, 0 },
+{"pser",       0, {"I", 0},   "f,s",     MATCH_PSER,     MASK_PSER, match_opcode, 0 },
+{"pmv.p.p",    0, {"I", 0},   "h,g",     MATCH_PMV_P_P,  MASK_PMV_P_P, match_opcode, 0 },
+{"padd",       0, {"I", 0},   "h,g,y,W", MATCH_PADD,     MASK_PADD, match_opcode, 0 },
+{"prnd",       0, {"I", 0},   "h,g,W",   MATCH_PRND,     MASK_PRND, match_opcode, 0 },
+{"psub",       0, {"I", 0},   "h,g,y,W", MATCH_PSUB,     MASK_PSUB, match_opcode, 0 },
+{"pmul",       0, {"I", 0},   "h,g,y,W", MATCH_PMUL,     MASK_PMUL, match_opcode, 0 },
+{"ple",        0, {"I", 0},   "h,X,s,G", MATCH_LOAD_VPE, MASK_LOAD_VPE, match_opcode, 0 },
+{"plh",        0, {"I", 0},   "h,Y,s,G", MATCH_LOAD_VPH, MASK_LOAD_VPH, match_opcode, 0 },
+{"plw",        0, {"I", 0},   "h,Y,s,G", MATCH_LOAD_VPW, MASK_LOAD_VPW, match_opcode, 0 },
+{"pld",        0, {"I", 0},   "h,Y,s,G", MATCH_LOAD_VPD, MASK_LOAD_VPD, match_opcode, 0 },
+{"pse",        0, {"I", 0},   "y,X,s,H", MATCH_STORE_VPE, MASK_STORE_VPE, match_opcode, 0 },
+{"psh",        0, {"I", 0},   "y,Y,s,H", MATCH_STORE_VPH, MASK_STORE_VPH, match_opcode, 0 },
+{"psw",        0, {"I", 0},   "y,Y,s,H", MATCH_STORE_VPW, MASK_STORE_VPW, match_opcode, 0 },
+{"psd",        0, {"I", 0},   "y,Y,s,H", MATCH_STORE_VPD, MASK_STORE_VPD, match_opcode, 0 },
+{"pcmp.eq",    0, {"I", 0},   "d,g,y",   MATCH_PCMP_EQ,   MASK_PCMP_EQ, match_opcode, 0 },
+{"pcmp.neq",   0, {"I", 0},   "d,g,y",   MATCH_PCMP_NEQ,  MASK_PCMP_NEQ, match_opcode, 0 },
+{"pcmp.geq",   0, {"I", 0},   "d,g,y",   MATCH_PCMP_GEQ,  MASK_PCMP_GEQ, match_opcode, 0 },
+{"pcmp.gt",    0, {"I", 0},   "d,g,y",   MATCH_PCMP_GT,   MASK_PCMP_GT, match_opcode, 0 },
+{"pcmp.leq",   0, {"I", 0},   "d,g,y",   MATCH_PCMP_LEQ,  MASK_PCMP_LEQ, match_opcode, 0 },
+{"pcmp.lt",    0, {"I", 0},   "d,g,y",   MATCH_PCMP_LT,   MASK_PCMP_LT, match_opcode, 0 },
+{"pcmp",       0, {"I", 0},   "d,g,y",   MATCH_PCMP,      MASK_PCMP, match_opcode, 0 },
+{"pcvt.p.h",   0, {"I", 0},   "d,y,Y",   MATCH_PCVT_P_H,  MASK_PCVT_P_H, match_opcode, 0 },
+{"pcvt.p.f",   0, {"I", 0},   "d,y,Y",   MATCH_PCVT_P_F,  MASK_PCVT_P_F, match_opcode, 0 },
+{"pcvt.p.d",   0, {"I", 0},   "d,y,Y",   MATCH_PCVT_P_D,  MASK_PCVT_P_D, match_opcode, 0 },
+{"pcvt.h.p",   0, {"I", 0},   "h,s",     MATCH_PCVT_H_P,  MASK_PCVT_H_P, match_opcode, 0 },
+{"pcvt.f.p",   0, {"I", 0},   "h,s",     MATCH_PCVT_F_P,  MASK_PCVT_F_P, match_opcode, 0 },
+{"pcvt.d.p",   0, {"I", 0},   "h,s",     MATCH_PCVT_D_P,  MASK_PCVT_D_P, match_opcode, 0 },
+{"pmv.p.x",    0, {"I", 0},   "d,g,J",   MATCH_PMV_P_X,   MASK_PMV_P_X, match_opcode, 0 },
+{"pmv.psgn.x", 0, {"I", 0},   "d,g",     MATCH_PMV_PSGN_X,MASK_PMV_PSGN_X, match_opcode, 0 },
+{"pmv.psum.x", 0, {"I", 0},   "d,g,J",   MATCH_PMV_PSUM_X,MASK_PMV_PSUM_X, match_opcode, 0 },
+{"pmv.plen.x", 0, {"I", 0},   "d,g",     MATCH_PMV_PLEN_X,MASK_PMV_PLEN_X, match_opcode, 0 },
+{"pmv.pexp.x", 0, {"I", 0},   "d,g",     MATCH_PMV_PEXP_X,MASK_PMV_PEXP_X, match_opcode, 0 },
+{"pmv.x.p",    0, {"I", 0},   "h,s,J",   MATCH_PMV_X_P,   MASK_PMV_X_P, match_opcode, 0 },
+{"pmv.x.psgn", 0, {"I", 0},   "h,s",     MATCH_PMV_X_PSGN,MASK_PMV_X_PSGN, match_opcode, 0 },
+{"pmv.x.psum", 0, {"I", 0},   "h,s",     MATCH_PMV_X_PSUM,MASK_PMV_X_PSUM, match_opcode, 0 },
+{"pmv.x.plen", 0, {"I", 0},   "h,s",     MATCH_PMV_X_PLEN,MASK_PMV_X_PLEN, match_opcode, 0 },
+{"pmv.x.pexp", 0, {"I", 0},   "h,s",     MATCH_PMV_X_PEXP,MASK_PMV_X_PEXP, match_opcode, 0 },
 
 /************************************************************************/
 /*	Custom instruction support	(Davide Pala)			*/

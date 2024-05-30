@@ -41,6 +41,7 @@ struct riscv_private_data
 static const char * const *riscv_gpr_names;
 static const char * const *riscv_fpr_names;
 static const char * const *riscv_vpr_names;
+static const char * const *riscv_vpe_names;
 
 /* Other options.  */
 static int no_aliases;	/* If set disassemble as most general inst.  */
@@ -51,6 +52,7 @@ set_default_riscv_dis_options (void)
   riscv_gpr_names = riscv_gpr_names_abi;
   riscv_fpr_names = riscv_fpr_names_abi;
   riscv_vpr_names = riscv_vpr_names_abi;
+  riscv_vpe_names = riscv_vpe_names_abi;
   no_aliases = 0;
 }
 
@@ -64,6 +66,7 @@ parse_riscv_dis_option (const char *option)
       riscv_gpr_names = riscv_gpr_names_numeric;
       riscv_fpr_names = riscv_fpr_names_numeric;
       riscv_vpr_names = riscv_vpr_names_numeric;
+      riscv_vpe_names = riscv_vpe_names_numeric;
     }
   else
     {
@@ -120,7 +123,9 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 {
   struct riscv_private_data *pd = info->private_data;
   int rs1 = (l >> OP_SH_RS1) & OP_MASK_RS1;
+  int rs2 = (l >> OP_SH_RS2) & OP_MASK_RS2;
   int rd = (l >> OP_SH_RD) & OP_MASK_RD;
+  int rm = (l >> OP_SH_RM) & OP_MASK_RM;
   fprintf_ftype print = info->fprintf_func;
 
   if (*d != '\0')
@@ -342,6 +347,50 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 
 	case 'Z':
 	  print (info->stream, "%d", rs1);
+	  break;
+
+	case 'e': /* Source is a VRP environment register */
+	  print (info->stream, "%s", riscv_vpe_names[rs1]);
+	  break;
+
+	case 'f': /* Destination is a VRP environment register */
+	  print (info->stream, "%s", riscv_vpe_names[rd]);
+	  break;
+
+	case 'g': /* Source #1 is a VRP floating-point register */
+	  print (info->stream, "%s", riscv_vpr_names[rs1]);
+	  break;
+
+	case 'h': /* Destination is a VRP floating-point register */
+	  print (info->stream, "%s", riscv_vpr_names[rd]);
+	  break;
+
+	case 'y': /* Source #2 is a VRP floating-point register */
+	  print (info->stream, "%s", riscv_vpr_names[rs2]);
+	  break;
+
+	case 'W': /* A VRP env reg of the compute class ec0-ec7. */
+	  print (info->stream, "%s", riscv_vpe_names[EC_TO_ETBL(rm)]);
+	  break;
+
+	case 'X': /* A VRP env reg of the VRP load/store class evp0-evp7. */
+	  print (info->stream, "%s", riscv_vpe_names[EVP_TO_ETBL(rm)]);
+	  break;
+
+	case 'Y': /* A VRP env reg of the half/float/double load/store class efp0-efp7. */
+	  print (info->stream, "%s", riscv_vpe_names[EVF_TO_ETBL(rm)]);
+	  break;
+
+	case 'G': /* A signed immediate byte used as index for VRP load instructions. */
+	  print (info->stream, "%d", (signed)EXTRACT_VRP_LD_IMM (l));
+	  break;
+
+	case 'H': /* A signed immediate byte used as index for VRP store instructions. */
+	  print (info->stream, "%d", (signed)EXTRACT_VRP_ST_IMM (l));
+	  break;
+
+	case 'J': /* An unsigned 5 bit immediate for VRP move instructions. */
+	  print (info->stream, "%d", (unsigned)EXTRACT_VRP_MV_IMM (l));
 	  break;
 
 	default:
